@@ -1,0 +1,586 @@
+<!--실습2-->
+<!--<!doctype html>-->
+<!--<html lang="ko">-->
+<!--    <head>-->
+<!--        <meta charset="UTF-8" />-->
+<!--        <title>FastAPI 실시간 서버 모니터링</title>-->
+<!--        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>-->
+<!--        <link-->
+<!--            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"-->
+<!--            rel="stylesheet"-->
+<!--        />-->
+<!--        <style>-->
+<!--            body {-->
+<!--                font-family: "Inter", sans-serif;-->
+<!--                background: #0f172a;-->
+<!--                color: #f8fafc;-->
+<!--                display: flex;-->
+<!--                justify-content: center;-->
+<!--                align-items: center;-->
+<!--                min-height: 100vh;-->
+<!--                margin: 0;-->
+<!--            }-->
+<!--            .dashboard {-->
+<!--                width: 90%;-->
+<!--                max-width: 800px;-->
+<!--                background: #1e293b;-->
+<!--                padding: 2rem;-->
+<!--                border-radius: 16px;-->
+<!--                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);-->
+<!--            }-->
+<!--            .header {-->
+<!--                text-align: center;-->
+<!--                margin-bottom: 2rem;-->
+<!--            }-->
+<!--            .status-dot {-->
+<!--                display: inline-block;-->
+<!--                width: 10px;-->
+<!--                height: 10px;-->
+<!--                border-radius: 50%;-->
+<!--                background: #94a3b8;-->
+<!--                margin-right: 8px;-->
+<!--            }-->
+<!--            .status-online {-->
+<!--                background: #22c55e;-->
+<!--                box-shadow: 0 0 10px #22c55e;-->
+<!--            }-->
+
+<!--            .metrics {-->
+<!--                display: grid;-->
+<!--                grid-template-columns: 1fr 1fr;-->
+<!--                gap: 1.5rem;-->
+<!--                margin-bottom: 2rem;-->
+<!--            }-->
+<!--            .card {-->
+<!--                background: #334155;-->
+<!--                padding: 1.5rem;-->
+<!--                border-radius: 12px;-->
+<!--                text-align: center;-->
+<!--            }-->
+<!--            .value {-->
+<!--                font-size: 2.5rem;-->
+<!--                font-weight: 600;-->
+<!--                color: #38bdf8;-->
+<!--                margin: 0.5rem 0;-->
+<!--            }-->
+<!--            .label {-->
+<!--                color: #94a3b8;-->
+<!--                font-size: 0.9rem;-->
+<!--                text-transform: uppercase;-->
+<!--            }-->
+
+<!--            .chart-container {-->
+<!--                background: #334155;-->
+<!--                padding: 1rem;-->
+<!--                border-radius: 12px;-->
+<!--                height: 300px;-->
+<!--            }-->
+<!--        </style>-->
+<!--    </head>-->
+<!--    <body>-->
+<!--        <div class="dashboard">-->
+<!--            <div class="header">-->
+<!--                <h2>🖥️ Server Resource Monitor</h2>-->
+<!--                <p>-->
+<!--                    <span id="status-dot" class="status-dot"></span>-->
+<!--                    <span id="status-text">연결 대기 중...</span>-->
+<!--                </p>-->
+<!--            </div>-->
+
+<!--            <div class="metrics">-->
+<!--                <div class="card">-->
+<!--                    <div class="label">CPU Usage</div>-->
+<!--                    <div id="cpu-val" class="value">0.0%</div>-->
+<!--                </div>-->
+<!--                <div class="card">-->
+<!--                    <div class="label">RAM Usage</div>-->
+<!--                    <div id="ram-val" class="value">0.0%</div>-->
+<!--                </div>-->
+<!--            </div>-->
+
+<!--            <div class="chart-container">-->
+<!--                <canvas id="resourceChart"></canvas>-->
+<!--            </div>-->
+<!--        </div>-->
+
+<!--        <script>-->
+<!--            const ctx = document-->
+<!--                .getElementById("resourceChart")-->
+<!--                .getContext("2d");-->
+<!--            const cpuVal = document.getElementById("cpu-val");-->
+<!--            const ramVal = document.getElementById("ram-val");-->
+<!--            const statusDot = document.getElementById("status-dot");-->
+<!--            const statusText = document.getElementById("status-text");-->
+
+<!--            // 차트 초기 설정-->
+<!--            const chart = new Chart(ctx, {-->
+<!--                type: "line",-->
+<!--                data: {-->
+<!--                    labels: Array(20).fill(""), // X축 라벨 20개 비워둠-->
+<!--                    datasets: [-->
+<!--                        {-->
+<!--                            label: "CPU (%)",-->
+<!--                            borderColor: "#38bdf8",-->
+<!--                            data: Array(20).fill(0),-->
+<!--                            tension: 0.4,-->
+<!--                            fill: false,-->
+<!--                        },-->
+<!--                        {-->
+<!--                            label: "RAM (%)",-->
+<!--                            borderColor: "#fbbf24",-->
+<!--                            data: Array(20).fill(0),-->
+<!--                            tension: 0.4,-->
+<!--                            fill: false,-->
+<!--                        },-->
+<!--                    ],-->
+<!--                },-->
+<!--                options: {-->
+<!--                    responsive: true,-->
+<!--                    maintainAspectRatio: false,-->
+<!--                    scales: {-->
+<!--                        y: { min: 0, max: 100, grid: { color: "#475569" } },-->
+<!--                        x: { display: false },-->
+<!--                    },-->
+<!--                    plugins: { legend: { labels: { color: "#f8fafc" } } },-->
+<!--                },-->
+<!--            });-->
+
+<!--            // 웹소켓 연결-->
+<!--            const ws = new WebSocket("ws://localhost:8000/ws/monitor");-->
+
+<!--            ws.onopen = () => {-->
+<!--                statusDot.classList.add("status-online");-->
+<!--                statusText.innerText = "연결됨 (실시간 데이터 수신 중)";-->
+<!--            };-->
+
+<!--            ws.onmessage = (event) => {-->
+<!--                const data = JSON.parse(event.data);-->
+
+<!--                // 텍스트 업데이트-->
+<!--                cpuVal.innerText = data.cpu.toFixed(1) + "%";-->
+<!--                ramVal.innerText = data.ram.toFixed(1) + "%";-->
+
+<!--                // 차트 데이터 업데이트 (맨 앞 제거, 맨 뒤 추가)-->
+<!--                chart.data.datasets[0].data.shift();-->
+<!--                chart.data.datasets[0].data.push(data.cpu);-->
+<!--                chart.data.datasets[1].data.shift();-->
+<!--                chart.data.datasets[1].data.push(data.ram);-->
+<!--                chart.update("none"); // 애니메이션 없이 빠르게 업데이트-->
+<!--            };-->
+
+<!--            ws.onclose = () => {-->
+<!--                statusDot.classList.remove("status-online");-->
+<!--                statusText.innerText = "연결 끊김";-->
+<!--            };-->
+<!--        </script>-->
+<!--    </body>-->
+<!--</html>-->
+
+<!-- 실습3 -->
+<!--<!doctype html>-->
+<!--<html>-->
+<!--    <head>-->
+<!--        <title>FastAPI 실시간 숫자 게임</title>-->
+<!--        <style>-->
+<!--            body {-->
+<!--                font-family: sans-serif;-->
+<!--                display: flex;-->
+<!--                flex-direction: column;-->
+<!--                align-items: center;-->
+<!--                background: #f0f2f5;-->
+<!--            }-->
+<!--            #game-container {-->
+<!--                background: white;-->
+<!--                padding: 2rem;-->
+<!--                border-radius: 12px;-->
+<!--                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);-->
+<!--                margin-top: 50px;-->
+<!--                text-align: center;-->
+<!--            }-->
+<!--            input {-->
+<!--                padding: 10px;-->
+<!--                font-size: 1.2rem;-->
+<!--                width: 80px;-->
+<!--                border: 2px solid #ddd;-->
+<!--                border-radius: 6px;-->
+<!--            }-->
+<!--            button {-->
+<!--                padding: 10px 20px;-->
+<!--                font-size: 1.2rem;-->
+<!--                background: #007bff;-->
+<!--                color: white;-->
+<!--                border: none;-->
+<!--                border-radius: 6px;-->
+<!--                cursor: pointer;-->
+<!--            }-->
+<!--            button:hover {-->
+<!--                background: #0056b3;-->
+<!--            }-->
+<!--            #log {-->
+<!--                margin-top: 20px;-->
+<!--                padding: 10px;-->
+<!--                width: 300px;-->
+<!--                height: 150px;-->
+<!--                overflow-y: auto;-->
+<!--                background: #eee;-->
+<!--                border-radius: 6px;-->
+<!--                font-size: 0.9rem;-->
+<!--            }-->
+<!--            .status {-->
+<!--                color: #28a745;-->
+<!--                font-weight: bold;-->
+<!--                margin-bottom: 10px;-->
+<!--            }-->
+<!--        </style>-->
+<!--    </head>-->
+<!--    <body>-->
+<!--        <div id="game-container">-->
+<!--            <h2>🔢 실시간 Up-Down 게임</h2>-->
+<!--            <div id="status" class="status">서버 연결 중...</div>-->
+<!--            <input type="number" id="guessInput" placeholder="숫자" />-->
+<!--            <button onclick="sendGuess()">전송</button>-->
+<!--            <div id="log"></div>-->
+<!--        </div>-->
+
+<!--        <script>-->
+<!--            // WebSocket 연결 생성-->
+<!--            const ws = new WebSocket("ws://127.0.0.1:8000/ws/game");-->
+<!--            const logDiv = document.getElementById("log");-->
+<!--            const statusDiv = document.getElementById("status");-->
+
+<!--            ws.onopen = () => (statusDiv.innerText = "🟢 서버 연결 완료!");-->
+<!--            ws.onclose = () => (statusDiv.innerText = "🔴 연결 종료");-->
+
+<!--            // 서버로부터 메시지 수신 시 처리-->
+<!--            ws.onmessage = (event) => {-->
+<!--                const message = document.createElement("div");-->
+<!--                message.innerText = event.data;-->
+<!--                logDiv.prepend(message); // 최신 메시지를 위로-->
+<!--            };-->
+
+<!--            function sendGuess() {-->
+<!--                const input = document.getElementById("guessInput");-->
+<!--                if (input.value) {-->
+<!--                    ws.send(input.value); // 서버로 데이터 전송-->
+<!--                    input.value = "";-->
+<!--                    input.focus();-->
+<!--                }-->
+<!--            }-->
+
+<!--            // 엔터키 지원-->
+<!--            document-->
+<!--                .getElementById("guessInput")-->
+<!--                .addEventListener("keypress", (e) => {-->
+<!--                    if (e.key === "Enter") sendGuess();-->
+<!--                });-->
+<!--        </script>-->
+<!--    </body>-->
+<!--</html>-->
+<!--실습 4-->
+<!--<!doctype html>-->
+<!--<html>-->
+<!--    <head>-->
+<!--        <title>FastAPI 개인 맞춤형 연결</title>-->
+<!--        <style>-->
+<!--            body {-->
+<!--                font-family: "Pretendard", sans-serif;-->
+<!--                background: #f8f9fa;-->
+<!--                display: flex;-->
+<!--                justify-content: center;-->
+<!--                padding-top: 50px;-->
+<!--            }-->
+<!--            .container {-->
+<!--                width: 400px;-->
+<!--                background: white;-->
+<!--                padding: 30px;-->
+<!--                border-radius: 15px;-->
+<!--                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);-->
+<!--            }-->
+<!--            .input-group {-->
+<!--                display: flex;-->
+<!--                gap: 10px;-->
+<!--                margin-bottom: 20px;-->
+<!--            }-->
+<!--            input {-->
+<!--                flex: 1;-->
+<!--                padding: 12px;-->
+<!--                border: 1px solid #ddd;-->
+<!--                border-radius: 8px;-->
+<!--            }-->
+<!--            button {-->
+<!--                padding: 12px 20px;-->
+<!--                background: #4dabf7;-->
+<!--                color: white;-->
+<!--                border: none;-->
+<!--                border-radius: 8px;-->
+<!--                cursor: pointer;-->
+<!--                font-weight: bold;-->
+<!--            }-->
+<!--            #chat-box {-->
+<!--                height: 200px;-->
+<!--                overflow-y: auto;-->
+<!--                background: #f1f3f5;-->
+<!--                padding: 15px;-->
+<!--                border-radius: 8px;-->
+<!--                margin-bottom: 15px;-->
+<!--                font-size: 0.9rem;-->
+<!--                line-height: 1.6;-->
+<!--            }-->
+<!--            .system-msg {-->
+<!--                color: #868e96;-->
+<!--                font-style: italic;-->
+<!--                text-align: center;-->
+<!--                margin-bottom: 10px;-->
+<!--            }-->
+<!--        </style>-->
+<!--    </head>-->
+<!--    <body>-->
+<!--        <div class="container">-->
+<!--            <h2 style="text-align: center; color: #333">🔗 개인 연결 테스트</h2>-->
+
+<!--            <div id="setup-section">-->
+<!--                <div class="input-group">-->
+<!--                    <input-->
+<!--                        type="text"-->
+<!--                        id="nickname"-->
+<!--                        placeholder="사용할 닉네임 입력"-->
+<!--                    />-->
+<!--                    <button onclick="connect()">연결</button>-->
+<!--                </div>-->
+<!--            </div>-->
+
+<!--            <div id="chat-section" style="display: none">-->
+<!--                <div id="chat-box"></div>-->
+<!--                <div class="input-group">-->
+<!--                    <input-->
+<!--                        type="text"-->
+<!--                        id="message"-->
+<!--                        placeholder="메시지 입력..."-->
+<!--                        onkeypress="if(event.key==='Enter') send()"-->
+<!--                    />-->
+<!--                    <button onclick="send()">보내기</button>-->
+<!--                </div>-->
+<!--            </div>-->
+<!--        </div>-->
+
+<!--        <script>-->
+<!--            let ws;-->
+
+<!--            function connect() {-->
+<!--                const nickname = document.getElementById("nickname").value;-->
+<!--                if (!nickname) return alert("닉네임을 입력하세요!");-->
+
+<!--                // 닉네임을 URL 파라미터로 넣어 연결-->
+<!--                ws = new WebSocket(`ws://localhost:8000/ws/${nickname}`);-->
+
+<!--                ws.onopen = () => {-->
+<!--                    document.getElementById("setup-section").style.display =-->
+<!--                        "none";-->
+<!--                    document.getElementById("chat-section").style.display =-->
+<!--                        "block";-->
+<!--                };-->
+
+<!--                ws.onmessage = (event) => {-->
+<!--                    const chatBox = document.getElementById("chat-box");-->
+<!--                    const msgDiv = document.createElement("div");-->
+<!--                    msgDiv.innerText = event.data;-->
+<!--                    chatBox.appendChild(msgDiv);-->
+<!--                    chatBox.scrollTop = chatBox.scrollHeight;-->
+<!--                };-->
+<!--            }-->
+
+<!--            function send() {-->
+<!--                const msgInput = document.getElementById("message");-->
+<!--                if (msgInput.value) {-->
+<!--                    ws.send(msgInput.value);-->
+<!--                    msgInput.value = "";-->
+<!--                }-->
+<!--            }-->
+<!--        </script>-->
+<!--    </body>-->
+<!--</html>-->
+<!--실습 5-->
+<!doctype html>
+<html>
+    <head>
+        <title>OZ 실시간 채팅방</title>
+        <style>
+            body {
+                font-family: "Pretendard", sans-serif;
+                background: #abc1d1;
+                display: flex;
+                justify-content: center;
+                padding: 20px;
+                margin: 0;
+            }
+            .chat-container {
+                width: 400px;
+                height: 600px;
+                background: #abc1d1;
+                display: flex;
+                flex-direction: column;
+            }
+            #chat-log {
+                flex: 1;
+                overflow-y: auto;
+                padding: 15px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            /* 말풍선 기본 스타일 */
+            .msg {
+                max-width: 70%;
+                padding: 8px 12px;
+                border-radius: 15px;
+                font-size: 0.9rem;
+                position: relative;
+                word-break: break-all;
+            }
+
+            /* 상대방 메시지 (왼쪽) */
+            .other {
+                align-self: flex-start;
+                background: white;
+                border-top-left-radius: 0;
+            }
+            .sender-name {
+                font-size: 0.75rem;
+                color: #444;
+                margin-bottom: 3px;
+                margin-left: 2px;
+            }
+
+            /* 내 메시지 (오른쪽) */
+            .mine {
+                align-self: flex-end;
+                background: #fee500;
+                border-top-right-radius: 0;
+            }
+
+            /* 시스템 메시지 (중앙) */
+            .system {
+                align-self: center;
+                background: rgba(0, 0, 0, 0.1);
+                color: white;
+                font-size: 0.75rem;
+                border-radius: 20px;
+                padding: 5px 15px;
+            }
+
+            .input-area {
+                background: white;
+                padding: 15px;
+                display: flex;
+                gap: 5px;
+            }
+            input {
+                flex: 1;
+                border: 1px solid #ddd;
+                padding: 10px;
+                border-radius: 5px;
+                outline: none;
+            }
+            button {
+                background: #fee500;
+                border: none;
+                padding: 10px 15px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-weight: bold;
+            }
+            #setup {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: white;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 10;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="chat-container">
+            <div id="setup">
+                <h3>대화명을 입력하세요</h3>
+                <input
+                    type="text"
+                    id="nickname"
+                    style="flex: none; width: 200px; margin-bottom: 10px"
+                />
+                <button onclick="connect()" style="width: 220px">
+                    입장하기
+                </button>
+            </div>
+
+            <div id="chat-log"></div>
+            <div class="input-area">
+                <input
+                    type="text"
+                    id="message"
+                    placeholder="메시지 입력..."
+                    onkeypress="if(event.key==='Enter') send()"
+                />
+                <button onclick="send()">전송</button>
+            </div>
+        </div>
+
+        <script>
+            let ws;
+            let myName;
+
+            function connect() {
+                myName = document.getElementById("nickname").value;
+                if (!myName) return alert("이름을 입력하세요!");
+
+                ws = new WebSocket(`ws://localhost:8000/ws/chat/${myName}`);
+                ws.onopen = () =>
+                    (document.getElementById("setup").style.display = "none");
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    const log = document.getElementById("chat-log");
+                    const wrapper = document.createElement("div");
+                    wrapper.style.display = "flex";
+                    wrapper.style.flexDirection = "column";
+
+                    if (data.type === "system") {
+                        const el = document.createElement("div");
+                        el.className = "msg system";
+                        el.innerText = data.message;
+                        log.appendChild(el);
+                    } else {
+                        if (data.sender !== myName) {
+                            const name = document.createElement("div");
+                            name.className = "sender-name";
+                            name.innerText = data.sender;
+                            wrapper.appendChild(name);
+                        }
+                        const msg = document.createElement("div");
+                        msg.className =
+                            "msg " +
+                            (data.sender === myName ? "mine" : "other");
+                        msg.innerText = data.message;
+                        wrapper.appendChild(msg);
+                        log.appendChild(wrapper);
+                    }
+                    log.scrollTop = log.scrollHeight;
+                };
+            }
+
+            function send() {
+                const input = document.getElementById("message");
+                if (input.value) {
+                    ws.send(input.value);
+                    input.value = "";
+                }
+            }
+        </script>
+    </body>
+</html>
